@@ -1,0 +1,216 @@
+/* static/css/style.css */
+body { }
+
+#execOutput, #infoContent {
+    white-space: pre-wrap;
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+    padding: 10px;
+    max-height: 400px; /* Increased height */
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.9em;
+    word-break: break-all; /* Allow breaking long lines */
+}
+
+#execOutput.success {
+    border-color: #d4edda;
+    background-color: #f8f9fa;
+    color: #155724;
+}
+
+#execOutput.error {
+    border-color: #f5c6cb;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.btn-processing {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-processing .spinner-border {
+     margin-right: 5px;
+}
+
+#toastContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1060; /* Ensure toast is above modals */
+}
+
+.modal { z-index: 1050; }
+.modal-backdrop { z-index: 1049; }
+
+@media (min-width: 768px) {
+     .container-list-mobile {
+        display: none !important; /* Force hide on desktop */
+     }
+     .container-list-desktop {
+         display: block !important; /* Force show on desktop */
+     }
+}
+
+@media (max-width: 767.98px) {
+     .container-list-desktop {
+         display: none !important; /* Force hide on mobile */
+     }
+      .container-list-mobile {
+         display: block !important; /* Force show on mobile */
+      }
+}
+
+ .container-list-mobile .card-actions {
+    margin-top: 1rem;
+ }
+
+  .container-list-mobile .card-text small {
+    font-weight: bold;
+    margin-right: 5px;
+  }
+
+ .container-list-mobile .card-title {
+     word-break: break-word;
+ }
+
+#loginContainer {
+    max-width: 400px;
+    width: 100%;
+    padding: 20px;
+}
+
+.main-content-wrapper {
+    min-height: calc(100vh - 56px - 48px);
+}
+
+.create-container-card {
+    background-color: transparent !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+.create-container-card .card-header {
+    background-color: transparent !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    color: inherit !important;
+    font-weight: bold;
+}
+
+.truncate-text {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.actions-dropdown .dropdown-menu {
+    min-width: auto;
+}
+
+.actions-dropdown .dropdown-item {
+    padding: .25rem 1rem;
+}
+
+.custom-container-list-row {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.custom-container-list-row:last-child {
+    border-bottom: none;
+}
+
+.custom-container-list-header {
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    padding: 0.5rem 0;
+}
+
+.custom-col {
+    padding: 0 0.75rem;
+    box-sizing: border-box;
+    word-break: break-word;
+}
+
+.custom-col-vmid {
+    flex: 0.5;
+    min-width: 60px;
+}
+
+.custom-col-name {
+    flex: 1.5;
+    min-width: 120px;
+}
+
+.custom-col-status {
+    flex: 0.8;
+    min-width: 90px;
+    text-align: center;
+}
+.custom-col-status .badge {
+    display: inline-block;
+}
+
+.custom-col-ip {
+    flex: 1.2;
+    min-width: 130px;
+}
+
+.custom-col-template {
+    flex: 2;
+    min-width: 180px;
+}
+
+.custom-col-actions {
+    flex: 1;
+    min-width: 80px;
+    text-align: center;
+}
+
+#pveError {
+    margin-bottom: 1rem;
+}
+
+#quickCommandsList li {
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    margin-bottom: 8px;
+    padding: 10px;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+#quickCommandsList li span {
+    flex-grow: 1;
+    margin-right: 10px;
+    word-break: break-word;
+}
+#quickCommandsList li button {
+    flex-shrink: 0;
+    margin-left: auto;
+ }
+
+ /* Ensure modals are visible */
+ .modal {
+    background-color: rgba(0,0,0,0.4); /* Add backdrop */
+ }
+
+ /* Fix dropdown in mobile card */
+ .container-list-mobile .dropdown {
+    position: static; /* Prevent dropdown from being clipped */
+ }
+ .container-list-mobile .dropdown-menu {
+     position: absolute; /* Ensure it overlays */
+     width: calc(100% - 30px) !important; /* Adjust width as needed */
+     left: 15px; /* Center it roughly */
+ }
