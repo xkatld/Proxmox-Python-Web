@@ -1,4 +1,3 @@
-# routers/containers.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List
 from services import pve_manager
@@ -8,13 +7,12 @@ from dependencies.auth import get_api_key
 router = APIRouter(
     prefix="/api/containers",
     tags=["Containers"],
-    dependencies=[Depends(get_api_key)], # 所有端点都需要 API Key
+    dependencies=[Depends(get_api_key)],
     responses={404: {"description": "Not found"}},
 )
 
 @router.get("/", response_model=List[pve_models.ContainerBase])
 async def read_containers():
-    """获取所有 LXC 容器列表。"""
     try:
         containers_raw = pve_manager.list_lxc_containers()
         containers_list = [
@@ -33,7 +31,6 @@ async def read_containers():
 
 @router.post("/", response_model=pve_models.ApiResponse)
 async def create_new_container(container: pve_models.ContainerCreate):
-    """创建新的 LXC 容器。"""
     try:
         result = pve_manager.create_lxc_container(
             vmid=container.vmid,
@@ -57,7 +54,6 @@ async def create_new_container(container: pve_models.ContainerCreate):
 
 @router.get("/{vmid}", response_model=pve_models.ContainerBase)
 async def read_container_details(vmid: int):
-    """获取指定 LXC 容器的详细信息。"""
     try:
         details = pve_manager.get_lxc_details(vmid)
         if not details:
@@ -67,7 +63,6 @@ async def read_container_details(vmid: int):
             name=details.get('name'),
             status=details.get('status'),
             ip=details.get('ip')
-            # 可以添加更多字段
         )
     except ConnectionError as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -76,7 +71,6 @@ async def read_container_details(vmid: int):
 
 @router.post("/{vmid}/action", response_model=pve_models.ApiResponse)
 async def perform_container_action(vmid: int, action: pve_models.ContainerAction):
-    """对容器执行操作 (start, stop, reboot, delete)。"""
     try:
         result = pve_manager.control_lxc_container(vmid, action.action)
         if result['status'] == 'error':
@@ -89,7 +83,6 @@ async def perform_container_action(vmid: int, action: pve_models.ContainerAction
 
 @router.post("/{vmid}/exec", response_model=pve_models.ApiResponse)
 async def execute_container_command(vmid: int, command: pve_models.CommandExec):
-    """在容器内执行命令 (简化版)。"""
     try:
         result = pve_manager.exec_lxc_command(vmid, command.command)
         return pve_models.ApiResponse(
@@ -102,7 +95,6 @@ async def execute_container_command(vmid: int, command: pve_models.CommandExec):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"执行命令失败: {e}")
 
-# 可以添加获取模板和存储的端点
 @router.get("/utils/templates", tags=["Utilities"])
 async def list_templates(storage: str = Query("local", description="存储名称")):
     try:
