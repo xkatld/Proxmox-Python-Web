@@ -4,21 +4,72 @@
 // !!! 重要: 在生产环境中，不应将 API 密钥硬编码在前端 JS 中。
 // 这只是一个示例。更好的方法是通过后端认证传递或使用安全的代理。
 const API_KEY = "your_chosen_secret_api_key_for_this_app"; // <--- 在这里填入你的 API 密钥
+const PVE_CONSOLE_URL_BASE = "https://your_pve_ip_or_hostname:8006/"; // <--- PVE 控制台地址
 const API_BASE_URL = "/api";
 // ===================================
 
 // ===================================
-// Utility Functions (Keep as is)
+// Utility Functions
 // ===================================
-function showToast(message, type = 'info') { /* ... (保持原样) ... */ }
-function setButtonProcessing(button, isProcessing) { /* ... (保持原样) ... */ }
+function showToast(message, type = 'info') {
+    let toastType = 'info';
+    if (type === 'success') {
+        toastType = 'success';
+    } else if (type === 'error') {
+        toastType = 'danger';
+    } else if (type === 'warning') {
+        toastType = 'warning';
+    }
+    const toastContainer = $('#toastContainer');
+    const toastHtml = `
+        <div class="toast align-items-center text-bg-${toastType} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    const toastElement = $(toastHtml);
+    toastContainer.append(toastElement);
+    const toast = new bootstrap.Toast(toastElement[0]);
+    toast.show();
+    toastElement.on('hidden.bs.toast', function () {
+        $(this).remove();
+    });
+}
+
+function setButtonProcessing(button, isProcessing) {
+    const $button = $(button);
+    if (!$button.length) {
+        return;
+    }
+    if (isProcessing) {
+        if (!$button.data('original-html')) {
+            $button.data('original-html', $button.html());
+            const originalText = $button.text().trim();
+            const spinnerHtml = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            $button.html(spinnerHtml + (originalText ? ' 处理中...' : ''));
+            $button.addClass('btn-processing').prop('disabled', true);
+        }
+    } else {
+        if ($button.data('original-html')) {
+             $button.html($button.data('original-html'));
+             $button.data('original-html', null);
+             $button.removeClass('btn-processing').prop('disabled', false);
+        } else {
+             $button.removeClass('btn-processing').prop('disabled', false);
+        }
+    }
+}
 // ===================================
 
 // ===================================
-// Confirmation Modal (Adjusted)
+// Confirmation Modal
 // ===================================
 let currentConfirmAction = null;
-let currentConfirmVmid = null; // Changed from name to vmid
+let currentConfirmVmid = null;
 let currentConfirmButtonElement = null;
 
 function showConfirmationModal(actionType, vmid, buttonElement) {
@@ -74,37 +125,38 @@ $('#confirmActionButton').click(function() {
     setButtonProcessing(confirmButton, true);
     setButtonProcessing(buttonElement, true);
 
-    $.ajax({
-        url: `${API_BASE_URL}/containers/${vmid}/action`,
-        type: 'POST',
-        headers: { 'X-API-Key': API_KEY },
-        contentType: 'application/json',
-        data: JSON.stringify({ action: actionType }),
-        success: function(data) {
+    callApi('POST', `/containers/${vmid}/action`, { action: actionType },
+        function(data) {
             showToast(data.message, data.status);
             if (data.status === 'success') {
                 setTimeout(() => loadContainers(), 1500); // Reload after action
+            } else {
+                 setButtonProcessing(buttonElement, false); // Release only on non-success
             }
         },
-        error: function(jqXHR) {
-            const message = jqXHR.responseJSON ? (jqXHR.responseJSON.detail || "未知错误") : `执行 ${actionType} 操作请求失败。`;
-            showToast("操作失败: " + message, 'danger');
-            setButtonProcessing(buttonElement, false);
+        function(jqXHR) {
+            setButtonProcessing(buttonElement, false); // Release on error
         },
-        complete: function() {
+        function() {
             const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
             if (confirmModal) confirmModal.hide();
             setButtonProcessing(confirmButton, false);
-            // Don't reset buttonElement here, let reload handle it
+            // Don't reset buttonElement here on success, let reload handle it
         }
-    });
+    );
+});
+
+$('#confirmModal').on('hidden.bs.modal', function () {
+    currentConfirmAction = null;
+    currentConfirmVmid = null;
+    currentConfirmButtonElement = null;
 });
 // ===================================
 
 // ===================================
-// Core PVE Functions
+// API Call Helper
 // ===================================
-function callApi(method, endpoint, data = null, successCallback, errorCallback) {
+function callApi(method, endpoint, data = null, successCallback, errorCallback = null, completeCallback = null) {
     const ajaxConfig = {
         url: `${API_BASE_URL}${endpoint}`,
         type: method,
@@ -117,7 +169,8 @@ function callApi(method, endpoint, data = null, successCallback, errorCallback) 
             if (errorCallback) {
                 errorCallback(jqXHR);
             }
-        }
+        },
+        complete: completeCallback
     };
 
     if (data && (method === 'POST' || method === 'PUT')) {
@@ -129,12 +182,16 @@ function callApi(method, endpoint, data = null, successCallback, errorCallback) 
 
     $.ajax(ajaxConfig);
 }
+// ===================================
 
+// ===================================
+// Core PVE Functions
+// ===================================
 function loadContainers() {
     const desktopList = $('#containerListDesktopItems');
     const mobileList = $('#containerListMobileItems');
-    desktopList.html('<div class="py-3 text-center">正在加载容器...</div>');
-    mobileList.html('<div class="alert alert-info text-center" role="alert">正在加载容器...</div>');
+    desktopList.html('<div class="py-3 text-center"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在加载容器...</div>');
+    mobileList.html('<div class="alert alert-info text-center" role="alert"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在加载容器...</div>');
     $('#pveError').addClass('d-none'); // Hide error on reload
 
     callApi('GET', '/containers/', null, function(containers) {
@@ -151,7 +208,9 @@ function loadContainers() {
             const statusBadge = `<span class="badge bg-${c.status === 'running' ? 'success' : c.status === 'stopped' ? 'danger' : 'secondary'}">${c.status || '未知'}</span>`;
             const ip = c.ip || '-';
             const name = c.name || `(vmid: ${c.vmid})`;
-            const template = c.template || 'N/A'; // Need to fetch this if not provided
+            const template = c.template || 'N/A';
+            const consoleLink = `${PVE_CONSOLE_URL_BASE}?console=lxc&vmid=${c.vmid}&node=${c.node || 'pve'}`; // Adjust node if needed
+
 
             const actionsDropdown = `
                 <div class="dropdown actions-dropdown">
@@ -162,7 +221,7 @@ function loadContainers() {
                             <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'stop', this)">停止</button></li>
                             <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'reboot', this)">重启</button></li>
                             <li><button class="dropdown-item" onclick="openExecModal(${c.vmid})">执行命令</button></li>
-                            <li><a class="dropdown-item" href="https://your_pve_ip_or_hostname:8006/#v_lxc_vnc_${c.vmid}" target="_blank">PVE 控制台</a></li>
+                            <li><a class="dropdown-item" href="${consoleLink}" target="_blank">PVE 控制台</a></li>
                         ` : c.status === 'stopped' ? `
                             <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'start', this)">启动</button></li>
                         ` : ''}
@@ -201,8 +260,8 @@ function loadContainers() {
             mobileList.append(mobileCard);
         });
     }, function() {
-        desktopList.html('<div class="py-3 text-center text-danger">加载容器失败。</div>');
-        mobileList.html('<div class="alert alert-danger text-center" role="alert">加载容器失败。</div>');
+        desktopList.html('<div class="py-3 text-center text-danger">加载容器失败。请检查 API Key 和 PVE 连接设置。</div>');
+        mobileList.html('<div class="alert alert-danger text-center" role="alert">加载容器失败。请检查 API Key 和 PVE 连接设置。</div>');
     });
 }
 
@@ -219,25 +278,23 @@ function showInfo(vmid, buttonElement) {
     infoError.addClass('d-none').text('');
     setButtonProcessing(buttonElement, true);
 
-    callApi('GET', `/containers/${vmid}`, null, function(data) {
-        // PVE API returns a lot, we need to format it nicely.
-        // The /api/containers/{vmid} should return a curated set or we format here.
-        // Assuming we get raw PVE status/config data
-        const formattedData = JSON.stringify(data, null, 2);
-        infoContent.text(formattedData);
-        infoModal.show();
-    }, function(jqXHR) {
-        const message = jqXHR.responseJSON ? jqXHR.responseJSON.detail : "请求失败。";
-        infoContent.html(`<strong>错误:</strong> ${message}`);
-        infoError.removeClass('d-none').text(message);
-        infoModal.show();
-    }, function() {
-        setButtonProcessing(buttonElement, false);
-    });
-    infoModal.show(); // Show modal even if API call fails
-    setButtonProcessing(buttonElement, false); // Make sure button is released
+    callApi('GET', `/containers/${vmid}`, null,
+        function(data) {
+            const formattedData = JSON.stringify(data, null, 2);
+            infoContent.text(formattedData);
+            infoModal.show();
+        },
+        function(jqXHR) {
+            const message = jqXHR.responseJSON ? jqXHR.responseJSON.detail : "请求失败。";
+            infoContent.html(`<strong>错误:</strong> ${message}`);
+            infoError.removeClass('d-none').text(message);
+            infoModal.show();
+        },
+        function() {
+             setButtonProcessing(buttonElement, false);
+        }
+    );
 }
-
 
 function loadPveResources() {
     // Load Templates
@@ -245,9 +302,10 @@ function loadPveResources() {
         const templateSelects = $('#containerTemplate, #containerTemplateMobile');
         templateSelects.empty().append('<option value="" selected disabled>请选择模板</option>');
         templates.forEach(t => {
-            // PVE template format is usually "storage:vztmpl/filename.tar.gz"
             templateSelects.append(`<option value="${t.volid}">${t.volid.split('/')[1] || t.volid}</option>`);
         });
+    }, function() {
+        $('#containerTemplate, #containerTemplateMobile').html('<option value="" selected disabled>加载模板失败</option>');
     });
 
     // Load Storage
@@ -255,8 +313,13 @@ function loadPveResources() {
         const storageSelects = $('#containerStorage, #containerStorageMobile');
         storageSelects.empty().append('<option value="" selected disabled>请选择存储</option>');
         storages.forEach(s => {
-            storageSelects.append(`<option value="${s.storage}">${s.storage} (${s.type})</option>`);
+            // Only show storages that can contain 'rootdir' or 'images' (common for LXC)
+            if(s.content && (s.content.includes('rootdir') || s.content.includes('images'))) {
+               storageSelects.append(`<option value="${s.storage}">${s.storage} (${s.type})</option>`);
+            }
         });
+    }, function() {
+        $('#containerStorage, #containerStorageMobile').html('<option value="" selected disabled>加载存储失败</option>');
     });
 }
 
@@ -266,36 +329,37 @@ function handleCreateContainerFormSubmit(event) {
     const submitButton = form.find('button[type="submit"]');
     setButtonProcessing(submitButton, true);
 
-    // Create a plain object from form data
     const formData = {};
     form.serializeArray().forEach(item => {
         formData[item.name] = item.value;
     });
-    // Ensure numeric fields are numbers
     formData.vmid = parseInt(formData.vmid, 10);
     formData.cpu_cores = parseInt(formData.cpu_cores, 10);
-    formData.memory_mb = parseInt(formData.memory_mb, 10);
-    formData.disk_gb = parseInt(formData.disk_gb, 10);
+    formData.memory = parseInt(formData.memory_mb, 10); // Changed to 'memory' for PVE
+    formData.disk = parseInt(formData.disk_gb, 10);     // Changed to 'disk' for PVE
 
-    callApi('POST', '/containers/', formData, function(data) {
-        showToast(data.message, data.status);
-        if (data.status === 'success') {
-            form[0].reset();
-            if (form.attr('id') === 'createContainerFormMobile') {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('createContainerModalMobile'));
-                if (modal) modal.hide();
+    callApi('POST', '/containers/', formData,
+        function(data) {
+            showToast(data.message, data.status);
+            if (data.status === 'success') {
+                form[0].reset();
+                if (form.attr('id') === 'createContainerFormMobile') {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('createContainerModalMobile'));
+                    if (modal) modal.hide();
+                }
+                setTimeout(() => loadContainers(), 1500);
             }
-            setTimeout(() => loadContainers(), 1500); // Reload list
+        },
+        null,
+        function() {
+             setButtonProcessing(submitButton, false);
         }
-    }, function() {
-        // Error already handled by callApi
-    }, function() {
-         setButtonProcessing(submitButton, false);
-    });
+    );
 }
 
 $('#createContainerForm').submit(handleCreateContainerFormSubmit);
 $('#createContainerFormMobile').submit(handleCreateContainerFormSubmit);
+// ===================================
 
 // ===================================
 // Exec Command Functions (Simplified)
@@ -307,7 +371,7 @@ function openExecModal(vmid) {
     $('#execOutput').text('');
     $('#execOutput').removeClass('success error');
     setButtonProcessing($('#execButton'), false);
-    // loadQuickCommands(true); // Keep if quick commands are implemented
+    loadQuickCommands(true); // Load quick commands into select
     var execModal = new bootstrap.Modal(document.getElementById('execModal'));
     execModal.show();
 }
@@ -328,25 +392,114 @@ $('#execCommandForm').submit(function(event) {
     outputArea.removeClass('success error');
     setButtonProcessing(submitButton, true);
 
-    callApi('POST', `/containers/${vmid}/exec`, { command: command }, function(data) {
-        outputArea.text(`状态: ${data.status}\n消息: ${data.message}\n详情: ${JSON.stringify(data.details, null, 2)}`);
-        outputArea.addClass(data.status === 'success' || data.status === 'warning' ? 'success' : 'error');
-        showToast(data.message, data.status);
-    }, null, function() {
-         setButtonProcessing(submitButton, false);
-    });
+    callApi('POST', `/containers/${vmid}/exec`, { command: command },
+        function(data) {
+            outputArea.text(`状态: ${data.status}\n消息: ${data.message}\n详情: ${JSON.stringify(data.details, null, 2)}`);
+            outputArea.addClass(data.status === 'success' || data.status === 'warning' ? 'success' : 'error');
+            showToast(data.message, data.status);
+        },
+        null,
+        function() {
+            setButtonProcessing(submitButton, false);
+        }
+    );
 });
+
+$('#useQuickCommandBtn').click(function() {
+    const selectedCommand = $('#quickCommandSelect').val();
+    if (selectedCommand) {
+        $('#commandInput').val(selectedCommand);
+    }
+});
+// ===================================
 
 // ===================================
 // Quick Commands (Placeholder - Needs Backend)
 // ===================================
 function loadQuickCommands(populateSelect = false) {
     // This needs backend implementation for /api/quick_commands
-    console.warn("Quick commands are not yet implemented with FastAPI backend.");
-     $('#quickCommandsList').html('<li class="list-group-item">快捷命令功能待实现。</li>');
-     $('#quickCommandSelect').html('<option value="" selected>-- 快捷命令待实现 --</option>');
+    // For now, we'll use local storage as a basic demo.
+    const list = $('#quickCommandsList');
+    const select = $('#quickCommandSelect');
+    list.html(''); // Clear previous
+    select.html('<option value="" selected>-- 选择或手动输入 --</option>');
+
+    try {
+        const commands = JSON.parse(localStorage.getItem('quickCommands') || '[]');
+        if (commands.length === 0) {
+            list.html('<li class="list-group-item">还没有快捷命令 (使用本地存储)。</li>');
+             if (populateSelect) {
+                 select.html('<option value="" selected>-- 没有快捷命令 --</option>');
+             }
+        } else {
+            commands.forEach((cmd, index) => {
+                const safeCommandPreview = cmd.command.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                const shortPreview = safeCommandPreview.split('\n')[0].substring(0, 50) + (cmd.command.length > 50 || cmd.command.includes('\n') ? '...' : '');
+                const listItem = `
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-command-index="${index}">
+                        <span><strong>${cmd.name}:</strong> <code>${shortPreview}</code></span>
+                        <button class="btn btn-sm btn-danger" onclick="deleteQuickCommand(${index}, this)">删除</button>
+                    </li>`;
+                list.append(listItem);
+                if (populateSelect) {
+                     const optionItem = `<option value="${cmd.command.replace(/"/g, '&quot;')}">${cmd.name}</option>`;
+                     select.append(optionItem);
+                }
+            });
+        }
+    } catch (e) {
+        list.html('<li class="list-group-item text-danger">加载本地快捷命令失败。</li>');
+        console.error("Failed to load/parse quick commands from localStorage", e);
+    }
 }
-// Add event listeners for quick commands if needed
+
+function addQuickCommand(event) {
+    event.preventDefault();
+    const nameInput = $('#quickCommandName');
+    const commandInput = $('#quickCommandValue');
+    const name = nameInput.val().trim();
+    const command = commandInput.val().trim();
+
+    if (!name || !command) {
+        showToast("名称和命令都不能为空。", 'warning');
+        return;
+    }
+
+    try {
+        const commands = JSON.parse(localStorage.getItem('quickCommands') || '[]');
+        if (commands.some(cmd => cmd.name === name)) {
+             showToast(`名称为 '${name}' 的快捷命令已存在。`, 'warning');
+             return;
+        }
+        commands.push({ name: name, command: command });
+        localStorage.setItem('quickCommands', JSON.stringify(commands));
+        showToast("快捷命令已添加到本地存储。", 'success');
+        nameInput.val('');
+        commandInput.val('');
+        loadQuickCommands(true);
+    } catch (e) {
+         showToast("添加快捷命令到本地存储失败。", 'danger');
+         console.error("Failed to save quick command to localStorage", e);
+    }
+}
+
+function deleteQuickCommand(index, buttonElement) {
+     if (!confirm('确定要删除这个本地存储的快捷命令吗？')) {
+        return;
+     }
+    try {
+        let commands = JSON.parse(localStorage.getItem('quickCommands') || '[]');
+        commands.splice(index, 1);
+        localStorage.setItem('quickCommands', JSON.stringify(commands));
+        showToast("快捷命令已从本地存储删除。", 'success');
+        loadQuickCommands(true);
+    } catch (e) {
+         showToast("删除快捷命令失败。", 'danger');
+         console.error("Failed to delete quick command from localStorage", e);
+    }
+}
+
+$('#addQuickCommandForm').submit(addQuickCommand);
 $('#quickCommandsModal').on('shown.bs.modal', function () { loadQuickCommands(false); });
 // ===================================
 
@@ -360,8 +513,21 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ===================================
-// Modal Cleanup (Keep as is)
+// Modal Cleanup
 // ===================================
-$('#infoModal').on('hidden.bs.modal', function () { /* ... (保持原样) ... */ });
-$('#execModal').on('hidden.bs.modal', function () { /* ... (保持原样) ... */ });
+$('#infoModal').on('hidden.bs.modal', function () {
+  $('#infoContent').html('...');
+  $('#infoError').addClass('d-none').text('');
+  $('#infoModalLabel').text('容器信息');
+});
+
+$('#execModal').on('hidden.bs.modal', function () {
+  $('#execContainerVmid').val('');
+  $('#commandInput').val('');
+  $('#execOutput').text('');
+  $('#execOutput').removeClass('success error');
+  $('#execModalLabel').text('在容器内执行命令');
+  $('#quickCommandSelect').html('<option value="" selected>-- 选择或手动输入 --</option>');
+  setButtonProcessing($('#execButton'), false);
+});
 // ===================================
