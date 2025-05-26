@@ -1,16 +1,7 @@
-// ===================================
-// Configuration
-// ===================================
-// !!! 重要: 在生产环境中，不应将 API 密钥硬编码在前端 JS 中。
-// 这只是一个示例。更好的方法是通过后端认证传递或使用安全的代理。
-const API_KEY = "your_chosen_secret_api_key_for_this_app"; // <--- 在这里填入你的 API 密钥
-const PVE_CONSOLE_URL_BASE = "https://your_pve_ip_or_hostname:8006/"; // <--- PVE 控制台地址
+const API_KEY = "your_chosen_secret_api_key_for_this_app";
+const PVE_CONSOLE_URL_BASE = "https://your_pve_ip_or_hostname:8006/";
 const API_BASE_URL = "/api";
-// ===================================
 
-// ===================================
-// Utility Functions
-// ===================================
 function showToast(message, type = 'info') {
     let toastType = 'info';
     if (type === 'success') {
@@ -63,11 +54,7 @@ function setButtonProcessing(button, isProcessing) {
         }
     }
 }
-// ===================================
 
-// ===================================
-// Confirmation Modal
-// ===================================
 let currentConfirmAction = null;
 let currentConfirmVmid = null;
 let currentConfirmButtonElement = null;
@@ -129,19 +116,18 @@ $('#confirmActionButton').click(function() {
         function(data) {
             showToast(data.message, data.status);
             if (data.status === 'success') {
-                setTimeout(() => loadContainers(), 1500); // Reload after action
+                setTimeout(() => loadContainers(), 1500);
             } else {
-                 setButtonProcessing(buttonElement, false); // Release only on non-success
+                 setButtonProcessing(buttonElement, false);
             }
         },
         function(jqXHR) {
-            setButtonProcessing(buttonElement, false); // Release on error
+            setButtonProcessing(buttonElement, false);
         },
         function() {
             const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
             if (confirmModal) confirmModal.hide();
             setButtonProcessing(confirmButton, false);
-            // Don't reset buttonElement here on success, let reload handle it
         }
     );
 });
@@ -151,11 +137,7 @@ $('#confirmModal').on('hidden.bs.modal', function () {
     currentConfirmVmid = null;
     currentConfirmButtonElement = null;
 });
-// ===================================
 
-// ===================================
-// API Call Helper
-// ===================================
 function callApi(method, endpoint, data = null, successCallback, errorCallback = null, completeCallback = null) {
     const ajaxConfig = {
         url: `${API_BASE_URL}${endpoint}`,
@@ -182,17 +164,13 @@ function callApi(method, endpoint, data = null, successCallback, errorCallback =
 
     $.ajax(ajaxConfig);
 }
-// ===================================
 
-// ===================================
-// Core PVE Functions
-// ===================================
 function loadContainers() {
     const desktopList = $('#containerListDesktopItems');
     const mobileList = $('#containerListMobileItems');
     desktopList.html('<div class="py-3 text-center"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在加载容器...</div>');
     mobileList.html('<div class="alert alert-info text-center" role="alert"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在加载容器...</div>');
-    $('#pveError').addClass('d-none'); // Hide error on reload
+    $('#pveError').addClass('d-none');
 
     callApi('GET', '/containers/', null, function(containers) {
         desktopList.empty();
@@ -209,7 +187,7 @@ function loadContainers() {
             const ip = c.ip || '-';
             const name = c.name || `(vmid: ${c.vmid})`;
             const template = c.template || 'N/A';
-            const consoleLink = `${PVE_CONSOLE_URL_BASE}?console=lxc&vmid=${c.vmid}&node=${c.node || 'pve'}`; // Adjust node if needed
+            const consoleLink = `${PVE_CONSOLE_URL_BASE}?console=lxc&vmid=${c.vmid}&node=${c.node || 'pve'}`;
 
 
             const actionsDropdown = `
@@ -218,10 +196,10 @@ function loadContainers() {
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><button class="dropdown-item" onclick="showInfo(${c.vmid}, this)">信息</button></li>
                         ${c.status === 'running' ? `
-                            <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'stop', this)">停止</button></li>
-                            <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'reboot', this)">重启</button></li>
-                            <li><button class="dropdown-item" onclick="openExecModal(${c.vmid})">执行命令</button></li>
-                            <li><a class="dropdown-item" href="${consoleLink}" target="_blank">PVE 控制台</a></li>
+                            <li><button class="dropdown-item" onclick="performAction(<span class="math-inline">\{c\.vmid\}, 'stop', this\)"\>停止</button\></li\>
+<li\><button class\="dropdown\-item" onclick\="performAction\(</span>{c.vmid}, 'reboot', this)">重启</button></li>
+                            <li><button class="dropdown-item" onclick="openExecModal(<span class="math-inline">\{c\.vmid\}\)"\>执行命令</button\></li\>
+<li\><a class\="dropdown\-item" href\="</span>{consoleLink}" target="_blank">PVE 控制台</a></li>
                         ` : c.status === 'stopped' ? `
                             <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'start', this)">启动</button></li>
                         ` : ''}
@@ -230,7 +208,6 @@ function loadContainers() {
                     </ul>
                 </div>`;
 
-            // Desktop Row
             const desktopRow = `
                 <div class="custom-container-list-row">
                     <div class="custom-col custom-col-vmid">${c.vmid}</div>
@@ -242,7 +219,6 @@ function loadContainers() {
                 </div>`;
             desktopList.append(desktopRow);
 
-            // Mobile Card
             const mobileCard = `
                 <div class="card mb-3 shadow-sm">
                      <div class="card-body">
@@ -297,8 +273,7 @@ function showInfo(vmid, buttonElement) {
 }
 
 function loadPveResources() {
-    // Load Templates
-    callApi('GET', '/containers/utils/templates', { storage: 'local' }, function(templates) { // Assuming 'local' storage, adjust if needed
+    callApi('GET', '/containers/utils/templates', { storage: 'local' }, function(templates) {
         const templateSelects = $('#containerTemplate, #containerTemplateMobile');
         templateSelects.empty().append('<option value="" selected disabled>请选择模板</option>');
         templates.forEach(t => {
@@ -308,12 +283,10 @@ function loadPveResources() {
         $('#containerTemplate, #containerTemplateMobile').html('<option value="" selected disabled>加载模板失败</option>');
     });
 
-    // Load Storage
     callApi('GET', '/containers/utils/storage', null, function(storages) {
         const storageSelects = $('#containerStorage, #containerStorageMobile');
         storageSelects.empty().append('<option value="" selected disabled>请选择存储</option>');
         storages.forEach(s => {
-            // Only show storages that can contain 'rootdir' or 'images' (common for LXC)
             if(s.content && (s.content.includes('rootdir') || s.content.includes('images'))) {
                storageSelects.append(`<option value="${s.storage}">${s.storage} (${s.type})</option>`);
             }
@@ -335,8 +308,8 @@ function handleCreateContainerFormSubmit(event) {
     });
     formData.vmid = parseInt(formData.vmid, 10);
     formData.cpu_cores = parseInt(formData.cpu_cores, 10);
-    formData.memory = parseInt(formData.memory_mb, 10); // Changed to 'memory' for PVE
-    formData.disk = parseInt(formData.disk_gb, 10);     // Changed to 'disk' for PVE
+    formData.memory = parseInt(formData.memory_mb, 10);
+    formData.disk = parseInt(formData.disk_gb, 10);
 
     callApi('POST', '/containers/', formData,
         function(data) {
@@ -359,19 +332,15 @@ function handleCreateContainerFormSubmit(event) {
 
 $('#createContainerForm').submit(handleCreateContainerFormSubmit);
 $('#createContainerFormMobile').submit(handleCreateContainerFormSubmit);
-// ===================================
 
-// ===================================
-// Exec Command Functions (Simplified)
-// ===================================
 function openExecModal(vmid) {
     $('#execContainerVmid').val(vmid);
     $('#execModalLabel').text(`在 ${vmid} 内执行命令`);
     $('#commandInput').val('');
     $('#execOutput').text('');
-    $('#execOutput').removeClass('success error');
-    setButtonProcessing($('#execButton'), false);
-    loadQuickCommands(true); // Load quick commands into select
+    <span class="math-inline">\('\#execOutput'\)\.removeClass\('success error'\);
+setButtonProcessing\(</span>('#execButton'), false);
+    loadQuickCommands(true);
     var execModal = new bootstrap.Modal(document.getElementById('execModal'));
     execModal.show();
 }
@@ -411,17 +380,11 @@ $('#useQuickCommandBtn').click(function() {
         $('#commandInput').val(selectedCommand);
     }
 });
-// ===================================
 
-// ===================================
-// Quick Commands (Placeholder - Needs Backend)
-// ===================================
 function loadQuickCommands(populateSelect = false) {
-    // This needs backend implementation for /api/quick_commands
-    // For now, we'll use local storage as a basic demo.
     const list = $('#quickCommandsList');
     const select = $('#quickCommandSelect');
-    list.html(''); // Clear previous
+    list.html('');
     select.html('<option value="" selected>-- 选择或手动输入 --</option>');
 
     try {
@@ -442,7 +405,7 @@ function loadQuickCommands(populateSelect = false) {
                     </li>`;
                 list.append(listItem);
                 if (populateSelect) {
-                     const optionItem = `<option value="${cmd.command.replace(/"/g, '&quot;')}">${cmd.name}</option>`;
+                     const optionItem = `<option value="${cmd.command.replace(/"/g, '&quot;')}">${cmd.name}</option`;
                      select.append(optionItem);
                 }
             });
@@ -501,20 +464,13 @@ function deleteQuickCommand(index, buttonElement) {
 
 $('#addQuickCommandForm').submit(addQuickCommand);
 $('#quickCommandsModal').on('shown.bs.modal', function () { loadQuickCommands(false); });
-// ===================================
 
-// ===================================
-// Initialization
-// ===================================
 document.addEventListener('DOMContentLoaded', function() {
     loadContainers();
-    loadPveResources(); // Load templates & storage on page load
-    loadQuickCommands(true); // Load quick commands on page load
+    loadPveResources();
+    loadQuickCommands(true);
 });
 
-// ===================================
-// Modal Cleanup
-// ===================================
 $('#infoModal').on('hidden.bs.modal', function () {
   $('#infoContent').html('...');
   $('#infoError').addClass('d-none').text('');
@@ -527,7 +483,6 @@ $('#execModal').on('hidden.bs.modal', function () {
   $('#execOutput').text('');
   $('#execOutput').removeClass('success error');
   $('#execModalLabel').text('在容器内执行命令');
-  $('#quickCommandSelect').html('<option value="" selected>-- 选择或手动输入 --</option>');
-  setButtonProcessing($('#execButton'), false);
+  <span class="math-inline">\('\#quickCommandSelect'\)\.html\('<option value\="" selected\>\-\- 选择或手动输入 \-\-</option\>'\);
+setButtonProcessing\(</span>('#execButton'), false);
 });
-// ===================================
