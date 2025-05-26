@@ -34,15 +34,15 @@
         设置以下环境变量：
         ```bash
         export PVE_HOST="your_pve_ip_or_hostname"
-        export PVE_USER="root@pam" # 或者 your_api_user@pve
+        export PVE_USER="root@pam"
         export PVE_TOKEN_NAME="your_token_name"
         export PVE_TOKEN_VALUE="your_token_value_uuid"
         export PVE_NODE="your_pve_node_name"
-        export PVE_VERIFY_SSL="false" # 如果使用自签名证书，设为 false
+        export PVE_VERIFY_SSL="false"
         export API_KEY="your_chosen_secret_api_key_for_this_app"
         ```
     * **方法二: 修改 `config.py`**
-        直接编辑 `config.py` 文件，填入你的 PVE 信息和 API 密钥。**注意：不建议将敏感信息直接写入代码库。**
+        直接编辑 `config.py` 文件，填入你的 PVE 信息和 API 密钥。
 
 4.  **在 Proxmox VE 创建 API Token**:
     * 登录 PVE Web UI。
