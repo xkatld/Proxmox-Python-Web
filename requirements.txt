@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+proxmoxer
+pydantic
+python-dotenv  # (可选, 用于从 .env 文件加载配置)
+jinja2
+python-multipart # (如果需要表单处理)
