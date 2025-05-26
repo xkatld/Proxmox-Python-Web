@@ -1,35 +1,25 @@
 import logging
 from proxmoxer import ProxmoxAPI
 from config import (
-    PVE_HOST, PVE_USER, PVE_PASSWORD, PVE_VERIFY_SSL,
-    PVE_TOKEN_NAME, PVE_TOKEN_VALUE, PVE_NODE
+    PVE_HOST, PVE_USER, PVE_PASSWORD, PVE_VERIFY_SSL, PVE_NODE
 )
 
 logger = logging.getLogger(__name__)
 
 def get_pve_api():
     try:
-        if PVE_TOKEN_NAME and PVE_TOKEN_VALUE:
-            logger.info(f"Connecting to Proxmox at {PVE_HOST} using API Token.")
-            proxmox = ProxmoxAPI(
-                PVE_HOST,
-                user=f"{PVE_USER}!{PVE_TOKEN_NAME}",
-                token=PVE_TOKEN_VALUE,
-                verify_ssl=PVE_VERIFY_SSL
-            )
-        else:
-            logger.info(f"Connecting to Proxmox at {PVE_HOST} using Password.")
-            proxmox = ProxmoxAPI(
-                PVE_HOST,
-                user=PVE_USER,
-                password=PVE_PASSWORD,
-                verify_ssl=PVE_VERIFY_SSL
-            )
+        logger.info(f"正在使用密码连接到 Proxmox: {PVE_HOST}。")
+        proxmox = ProxmoxAPI(
+            PVE_HOST,
+            user=PVE_USER,
+            password=PVE_PASSWORD,
+            verify_ssl=PVE_VERIFY_SSL
+        )
         proxmox.version.get()
-        logger.info("Proxmox connection successful.")
+        logger.info("Proxmox 连接成功。")
         return proxmox
     except Exception as e:
-        logger.error(f"Failed to connect to Proxmox: {e}")
+        logger.error(f"连接 Proxmox 失败: {e}")
         raise ConnectionError(f"无法连接到 Proxmox: {e}")
 
 def get_node():
@@ -45,12 +35,15 @@ def list_lxc_containers():
                 config = node.lxc(c['vmid']).config.get()
                 net0 = config.get('net0', '')
                 ip_match = next((part.split('=')[1].split('/')[0] for part in net0.split(',') if part.startswith('ip=')), None)
-                c['ip'] = ip_match if ip_match else 'N/A'
+                c['ip'] = ip_match if ip_match else '无'
+                ostemplate = config.get('ostemplate', 'N/A')
+                c['template'] = ostemplate.split('/')[-1].replace('.conf', '') if ostemplate != 'N/A' else 'N/A'
             except Exception:
-                 c['ip'] = 'Error'
+                 c['ip'] = '错误'
+                 c['template'] = '错误'
         return containers
     except Exception as e:
-        logger.error(f"Failed to list LXC containers: {e}")
+        logger.error(f"列出 LXC 容器失败: {e}")
         return []
 
 def get_lxc_details(vmid):
@@ -60,11 +53,11 @@ def get_lxc_details(vmid):
         config = node.lxc(vmid).config.get()
         net0 = config.get('net0', '')
         ip_match = next((part.split('=')[1].split('/')[0] for part in net0.split(',') if part.startswith('ip=')), None)
-        status['ip'] = ip_match if ip_match else 'N/A'
+        status['ip'] = ip_match if ip_match else '无'
         status['config'] = config
         return status
     except Exception as e:
-        logger.error(f"Failed to get LXC details for {vmid}: {e}")
+        logger.error(f"获取 LXC {vmid} 详情失败: {e}")
         return None
 
 def create_lxc_container(vmid, hostname, password, template, storage, net_config, cpu_cores=1, memory=512, disk=5):
@@ -85,13 +78,14 @@ def create_lxc_container(vmid, hostname, password, template, storage, net_config
         task_id = node.lxc.create(**params)
         return {"status": "success", "message": "创建任务已提交", "task_id": task_id}
     except Exception as e:
-        logger.error(f"Failed to create LXC container {hostname}: {e}")
+        logger.error(f"创建 LXC 容器 {hostname} 失败: {e}")
         return {"status": "error", "message": str(e)}
 
 def control_lxc_container(vmid, action):
     try:
         node = get_node()
         lxc = node.lxc(vmid)
+        task_id = None
         if action == 'start':
             task_id = lxc.status.start.post()
         elif action == 'stop':
@@ -101,39 +95,46 @@ def control_lxc_container(vmid, action):
         elif action == 'reboot':
             task_id = lxc.status.reboot.post()
         elif action == 'delete':
-            try: lxc.status.stop.post()
-            except: pass
+            try:
+                status = lxc.status.current.get()
+                if status.get('status') == 'running':
+                    lxc.status.stop.post()
+                    # 等待 PVE 处理停止操作，实际应用中可能需要更复杂的等待逻辑
+                    import time
+                    time.sleep(5)
+            except Exception:
+                pass
             task_id = lxc.delete()
         else:
             return {"status": "error", "message": "无效的操作"}
         return {"status": "success", "message": f"操作 '{action}' 已提交", "task_id": task_id}
     except Exception as e:
-        logger.error(f"Failed to {action} LXC container {vmid}: {e}")
+        logger.error(f"执行 {action} LXC 容器 {vmid} 失败: {e}")
         return {"status": "error", "message": str(e)}
 
 def exec_lxc_command(vmid, command):
     try:
         node = get_node()
-        result = node.lxc(vmid).termproxy.post(command=command)
-        return {"status": "warning", "message": "命令执行需要 WebSocket，此为简化版。", "result": result}
+        result = node.lxc(vmid).vncproxy.post(cmd=command)
+        return {"status": "warning", "message": "命令执行可能不返回直接输出。", "result": result}
     except Exception as e:
-        logger.error(f"Failed to execute command in LXC {vmid}: {e}")
+        logger.error(f"在 LXC {vmid} 中执行命令失败: {e}")
         return {"status": "error", "message": str(e)}
 
 def list_pve_templates(storage='local'):
     try:
-        pve = get_pve_api()
-        templates = pve.storage(storage).content.get(content='vztmpl')
+        node = get_node()
+        templates = node.storage(storage).content.get(content='vztmpl')
         return templates
     except Exception as e:
-        logger.error(f"Failed to list PVE templates: {e}")
+        logger.error(f"列出 PVE 模板失败: {e}")
         return []
 
 def list_pve_storage():
     try:
-        pve = get_pve_api()
-        storages = pve.storage.get()
-        return [s for s in storages if s.get('type') in ['dir', 'lvm', 'zfspool']]
+        node = get_node()
+        storages = node.storage.get()
+        return [s for s in storages if s.get('content') and ('vztmpl' in s.get('content') or 'rootdir' in s.get('content') or 'images' in s.get('content'))]
     except Exception as e:
-        logger.error(f"Failed to list PVE storage: {e}")
+        logger.error(f"列出 PVE 存储失败: {e}")
         return []
