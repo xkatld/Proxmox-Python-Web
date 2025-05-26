@@ -1,5 +1,5 @@
-const API_KEY = "your_chosen_secret_api_key_for_this_app";
-const PVE_CONSOLE_URL_BASE = "https://your_pve_ip_or_hostname:8006/";
+let API_KEY = "your_super_secret_api_key";
+let PVE_CONSOLE_URL_BASE = "https://your_pve_ip_or_hostname:8006/";
 const API_BASE_URL = "/api";
 
 function showToast(message, type = 'info') {
@@ -81,16 +81,13 @@ function showConfirmationModal(actionType, vmid, buttonElement) {
 
     if (config) {
         modalTitle.text(config.title);
-        message = config.msg;
-        buttonClass = config.class;
-        buttonText = config.text;
+        modalBody.html(config.msg);
+        confirmButton.removeClass('btn-primary btn-warning btn-danger btn-success').addClass(config.class).text(config.text);
     } else {
         showToast("未知的确认操作类型。", 'danger');
         return;
     }
 
-    modalBody.html(message);
-    confirmButton.removeClass('btn-primary btn-warning btn-danger btn-success').addClass(buttonClass).text(buttonText);
     setButtonProcessing(confirmButton, false);
     const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
     confirmModal.show();
@@ -114,9 +111,9 @@ $('#confirmActionButton').click(function() {
 
     callApi('POST', `/containers/${vmid}/action`, { action: actionType },
         function(data) {
-            showToast(data.message, data.status);
+            showToast(data.message, data.status === 'success' ? 'success' : 'error');
             if (data.status === 'success') {
-                setTimeout(() => loadContainers(), 1500);
+                setTimeout(() => loadContainers(), 2500);
             } else {
                  setButtonProcessing(buttonElement, false);
             }
@@ -186,9 +183,8 @@ function loadContainers() {
             const statusBadge = `<span class="badge bg-${c.status === 'running' ? 'success' : c.status === 'stopped' ? 'danger' : 'secondary'}">${c.status || '未知'}</span>`;
             const ip = c.ip || '-';
             const name = c.name || `(vmid: ${c.vmid})`;
-            const template = c.template || 'N/A';
-            const consoleLink = `${PVE_CONSOLE_URL_BASE}?console=lxc&vmid=${c.vmid}&node=${c.node || 'pve'}`;
-
+            const template = c.template || '无';
+            const consoleLink = `${PVE_CONSOLE_URL_BASE}#v1:0:16:lxc/${c.vmid}:`;
 
             const actionsDropdown = `
                 <div class="dropdown actions-dropdown">
@@ -196,10 +192,10 @@ function loadContainers() {
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><button class="dropdown-item" onclick="showInfo(${c.vmid}, this)">信息</button></li>
                         ${c.status === 'running' ? `
-                            <li><button class="dropdown-item" onclick="performAction(<span class="math-inline">\{c\.vmid\}, 'stop', this\)"\>停止</button\></li\>
-<li\><button class\="dropdown\-item" onclick\="performAction\(</span>{c.vmid}, 'reboot', this)">重启</button></li>
-                            <li><button class="dropdown-item" onclick="openExecModal(<span class="math-inline">\{c\.vmid\}\)"\>执行命令</button\></li\>
-<li\><a class\="dropdown\-item" href\="</span>{consoleLink}" target="_blank">PVE 控制台</a></li>
+                            <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'stop', this)">停止</button></li>
+                            <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'reboot', this)">重启</button></li>
+                            <li><button class="dropdown-item" onclick="openExecModal(${c.vmid})">执行命令</button></li>
+                            <li><a class="dropdown-item" href="${consoleLink}" target="_blank">PVE 控制台</a></li>
                         ` : c.status === 'stopped' ? `
                             <li><button class="dropdown-item" onclick="performAction(${c.vmid}, 'start', this)">启动</button></li>
                         ` : ''}
@@ -226,8 +222,8 @@ function loadContainers() {
                             <h5 class="card-title mb-0">${c.vmid} - ${name}</h5>
                             ${statusBadge}
                         </div>
-                        <p class="card-text mb-1"><small class="text-muted">IP:</small> ${ip}</p>
-                        <p class="card-text mb-3"><small class="text-muted">模板:</small> ${template}</p>
+                        <p class="card-text mb-1"><small>IP:</small> ${ip}</p>
+                        <p class="card-text mb-3"><small>模板:</small> ${template}</p>
                         <div class="card-actions">
                              ${actionsDropdown.replace('dropdown-toggle', 'dropdown-toggle w-100').replace('dropdown-menu-end', 'dropdown-menu-end w-100')}
                         </div>
@@ -273,7 +269,7 @@ function showInfo(vmid, buttonElement) {
 }
 
 function loadPveResources() {
-    callApi('GET', '/containers/utils/templates', { storage: 'local' }, function(templates) {
+    callApi('GET', '/containers/utils/templates', null, function(templates) {
         const templateSelects = $('#containerTemplate, #containerTemplateMobile');
         templateSelects.empty().append('<option value="" selected disabled>请选择模板</option>');
         templates.forEach(t => {
@@ -287,9 +283,7 @@ function loadPveResources() {
         const storageSelects = $('#containerStorage, #containerStorageMobile');
         storageSelects.empty().append('<option value="" selected disabled>请选择存储</option>');
         storages.forEach(s => {
-            if(s.content && (s.content.includes('rootdir') || s.content.includes('images'))) {
-               storageSelects.append(`<option value="${s.storage}">${s.storage} (${s.type})</option>`);
-            }
+            storageSelects.append(`<option value="${s.storage}">${s.storage} (${s.type})</option>`);
         });
     }, function() {
         $('#containerStorage, #containerStorageMobile').html('<option value="" selected disabled>加载存储失败</option>');
@@ -320,7 +314,7 @@ function handleCreateContainerFormSubmit(event) {
                     const modal = bootstrap.Modal.getInstance(document.getElementById('createContainerModalMobile'));
                     if (modal) modal.hide();
                 }
-                setTimeout(() => loadContainers(), 1500);
+                setTimeout(() => loadContainers(), 2500);
             }
         },
         null,
@@ -338,8 +332,8 @@ function openExecModal(vmid) {
     $('#execModalLabel').text(`在 ${vmid} 内执行命令`);
     $('#commandInput').val('');
     $('#execOutput').text('');
-    <span class="math-inline">\('\#execOutput'\)\.removeClass\('success error'\);
-setButtonProcessing\(</span>('#execButton'), false);
+    $('#execOutput').removeClass('success error');
+    setButtonProcessing($('#execButton'), false);
     loadQuickCommands(true);
     var execModal = new bootstrap.Modal(document.getElementById('execModal'));
     execModal.show();
@@ -390,7 +384,7 @@ function loadQuickCommands(populateSelect = false) {
     try {
         const commands = JSON.parse(localStorage.getItem('quickCommands') || '[]');
         if (commands.length === 0) {
-            list.html('<li class="list-group-item">还没有快捷命令 (使用本地存储)。</li>');
+            list.html('<li class="list-group-item">还没有快捷命令。</li>');
              if (populateSelect) {
                  select.html('<option value="" selected>-- 没有快捷命令 --</option>');
              }
@@ -412,7 +406,7 @@ function loadQuickCommands(populateSelect = false) {
         }
     } catch (e) {
         list.html('<li class="list-group-item text-danger">加载本地快捷命令失败。</li>');
-        console.error("Failed to load/parse quick commands from localStorage", e);
+        console.error("加载快捷命令失败", e);
     }
 }
 
@@ -436,29 +430,29 @@ function addQuickCommand(event) {
         }
         commands.push({ name: name, command: command });
         localStorage.setItem('quickCommands', JSON.stringify(commands));
-        showToast("快捷命令已添加到本地存储。", 'success');
+        showToast("快捷命令已添加。", 'success');
         nameInput.val('');
         commandInput.val('');
         loadQuickCommands(true);
     } catch (e) {
-         showToast("添加快捷命令到本地存储失败。", 'danger');
-         console.error("Failed to save quick command to localStorage", e);
+         showToast("添加快捷命令失败。", 'danger');
+         console.error("保存快捷命令失败", e);
     }
 }
 
 function deleteQuickCommand(index, buttonElement) {
-     if (!confirm('确定要删除这个本地存储的快捷命令吗？')) {
+     if (!confirm('确定要删除这个快捷命令吗？')) {
         return;
      }
     try {
         let commands = JSON.parse(localStorage.getItem('quickCommands') || '[]');
         commands.splice(index, 1);
         localStorage.setItem('quickCommands', JSON.stringify(commands));
-        showToast("快捷命令已从本地存储删除。", 'success');
+        showToast("快捷命令已删除。", 'success');
         loadQuickCommands(true);
     } catch (e) {
          showToast("删除快捷命令失败。", 'danger');
-         console.error("Failed to delete quick command from localStorage", e);
+         console.error("删除快捷命令失败", e);
     }
 }
 
@@ -469,6 +463,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadContainers();
     loadPveResources();
     loadQuickCommands(true);
+    showToast('请确保已在 config.py 或环境变量中设置 PVE 连接信息和 API_KEY，并在本文件 (script.js) 中设置了相同的 API_KEY！', 'warning');
 });
 
 $('#infoModal').on('hidden.bs.modal', function () {
@@ -483,6 +478,6 @@ $('#execModal').on('hidden.bs.modal', function () {
   $('#execOutput').text('');
   $('#execOutput').removeClass('success error');
   $('#execModalLabel').text('在容器内执行命令');
-  <span class="math-inline">\('\#quickCommandSelect'\)\.html\('<option value\="" selected\>\-\- 选择或手动输入 \-\-</option\>'\);
-setButtonProcessing\(</span>('#execButton'), false);
+  $('#quickCommandSelect').html('<option value="" selected>-- 选择或手动输入 --</option>');
+  setButtonProcessing($('#execButton'), false);
 });
